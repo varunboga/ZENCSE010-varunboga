@@ -20,4 +20,46 @@ TODO (Students):
         MongoDB _id can be handled as PyObjectId or ignored (use certificate_id as primary key).
 """
 
-# TODO: implement Certificate model here
+from datetime import datetime, timezone
+from typing import TypedDict, List, Optional, Literal
+from uuid import uuid4
+from pydantic import BaseModel, Field
+
+class RecipientDict(TypedDict):
+    name: str
+    email: str
+    student_id: Optional[str]
+
+class CertificateDict(TypedDict):
+    title: str
+    description: Optional[str]
+    skills: List[str]
+
+class SignatureDict(TypedDict):
+    algorithm: str
+    key_id: str
+    value: str
+    data_hash: str
+
+class QRDict(TypedDict):
+    url: str
+    generated_at: datetime
+
+def generate_cert_id() -> str:
+    return f"CERT-{uuid4()}"
+
+def get_current_time() -> datetime:
+    return datetime.now(timezone.utc)
+
+class Certificate(BaseModel):
+    certificate_id: str = Field(default_factory=generate_cert_id)
+    recipient: RecipientDict
+    certificate: CertificateDict
+    issued_at: datetime = Field(default_factory=get_current_time)
+    expires_at: Optional[datetime] = None
+    signature: SignatureDict
+    qr: QRDict
+    status: Literal["ACTIVE", "REVOKED", "EXPIRED"] = Field(default="ACTIVE")
+    verification_count: int = Field(default=0)
+    last_verified_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=get_current_time)

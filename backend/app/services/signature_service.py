@@ -1,35 +1,35 @@
-"""
-ECDSA P-256 Digital Signature Service.
+import json, base64, hashlib, os
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.exceptions import InvalidSignature
+from app.config import settings
 
-TODO (Students):
-  Implement two functions:
+def _canonicalize(data: dict) -> bytes:
+    return json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
-  1. sign_certificate(data: dict) -> tuple[str, str]
-     - Canonicalize the dict: sort keys, convert to JSON string
-     - Compute SHA-256 hash of the canonical string
-     - Load private key from settings.private_key_path (PEM format)
-     - Sign the hash using ECDSA with SHA-256 (from `cryptography` library)
-     - Return (base64-encoded signature, hex data_hash)
+def sign_certificate(data: dict) -> tuple[str, str]:
+    canonical_bytes = _canonicalize(data)
+    data_hash = f"sha256:{hashlib.sha256(canonical_bytes).hexdigest()}"
+    with open(settings.private_key_path, "rb") as f:
+        private_key = serialization.load_pem_private_key(f.read(), password=None)
+    signature_b64 = base64.b64encode(private_key.sign(canonical_bytes, ec.ECDSA(hashes.SHA256()))).decode()
+    return signature_b64, data_hash
 
-     Hint:
-       from cryptography.hazmat.primitives.asymmetric import ec
-       from cryptography.hazmat.primitives import hashes, serialization
-       private_key.sign(data_bytes, ec.ECDSA(hashes.SHA256()))
+def verify_certificate(data: dict, signature_b64: str) -> bool:
+    try:
+        canonical_bytes = _canonicalize(data)
+        with open(settings.public_key_path, "rb") as f:
+            public_key = serialization.load_pem_public_key(f.read())
+        public_key.verify(base64.b64decode(signature_b64), canonical_bytes, ec.ECDSA(hashes.SHA256()))
+        return True
+    except (InvalidSignature, ValueError, TypeError):
+        return False
 
-  2. verify_certificate(data: dict, signature_b64: str) -> bool
-     - Canonicalize + hash the data the same way as sign_certificate
-     - Load public key from settings.public_key_path
-     - Decode the base64 signature
-     - Verify using the public key
-     - Return True if valid, False if verification fails
-
-     Hint: Use try/except around public_key.verify(...)
-           It raises InvalidSignature if verification fails.
-
-  Also provide:
-  3. generate_keys() — a utility to generate a new ECDSA P-256 key pair
-     and save private_key.pem + public_key.pem to the keys/ folder.
-     Run this ONCE to set up the system.
-"""
-
-# TODO: implement SignatureService here
+def generate_keys():
+    os.makedirs("keys", exist_ok=True)
+    private_key = ec.generate_private_key(ec.SECP256R1())
+    with open("keys/private_key.pem", "wb") as f:
+        f.write(private_key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
+    with open("keys/public_key.pem", "wb") as f:
+        f.write(private_key.public_key().public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo))
+    print("ECDSA P-256 key pair generated successfully!")
