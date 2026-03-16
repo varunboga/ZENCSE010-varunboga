@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 
     # Verification portal base URL embedded inside QR code
     # e.g. http://localhost:3001/v  → final URL: http://localhost:3001/v/{cert_id}
-    verify_base_url: str = "http://localhost:3001/v"
+    verify_base_url: str = "http://127.0.0.1:8000/verify"
 
     # Institution info shown on verification page
     institution_name: str = "CertShield Institution"

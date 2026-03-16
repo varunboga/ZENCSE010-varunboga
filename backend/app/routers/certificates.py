@@ -1,27 +1,39 @@
-"""
-Admin REST endpoints for Certificate management.
-All routes require X-API-Key header authentication.
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
+from app.middleware.api_key_auth import verify_api_key
+from app.services import certificate_service
+from app.models.requests import CertificateCreateRequest, RevokeRequest
 
-TODO (Students):
-  Implement the following FastAPI route handlers:
+router = APIRouter(prefix="/certificates", tags=["certificates"])
 
-  POST   /api/v1/certificates          → issue_certificate()
-  GET    /api/v1/certificates          → list_certificates() with ?skip=0&limit=20
-  GET    /api/v1/certificates/{id}     → get_certificate()
-  PUT    /api/v1/certificates/{id}/revoke → revoke_certificate()
-  GET    /api/v1/certificates/{id}/qrcode → return QR PNG as image/png response
+@router.post("/", status_code=201, dependencies=[Depends(verify_api_key)])
+async def issue_certificate(request: CertificateCreateRequest):
+    return await certificate_service.issue_certificate(request)
 
-  All routes must:
-    - Call verify_api_key dependency (from middleware/api_key_auth.py)
-    - Call the appropriate certificate_service function
-    - Return proper HTTP status codes (201 for create, 200 for others, 404 if not found)
+@router.get("/", dependencies=[Depends(verify_api_key)])
+async def list_certificates(skip: int = 0, limit: int = 20):
+    return await certificate_service.list_certificates(skip=skip, limit=limit)
 
-  Hint:
-    router = APIRouter(prefix="/api/v1/certificates", tags=["certificates"])
+@router.get("/{certificate_id}", dependencies=[Depends(verify_api_key)])
+async def get_certificate(certificate_id: str):
+    cert = await certificate_service.get_certificate(certificate_id)
+    if not cert:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    return cert
 
-    @router.post("/", status_code=201, dependencies=[Depends(verify_api_key)])
-    async def create_certificate(request: CertificateCreateRequest):
-        return await certificate_service.issue_certificate(request)
-"""
+@router.put("/{certificate_id}/revoke", dependencies=[Depends(verify_api_key)])
+async def revoke_certificate(certificate_id: str, body: RevokeRequest):
+    success = await certificate_service.revoke_certificate(certificate_id, body.reason, body.revoked_by)
+    if not success:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    return {"certificate_id": certificate_id, "status": "REVOKED"}
 
-# TODO: implement certificate router here
+@router.get("/{certificate_id}/qrcode", dependencies=[Depends(verify_api_key)])
+async def get_qrcode(certificate_id: str):
+    import base64
+    from app.services.qr_service import generate_qr_base64
+    cert = await certificate_service.get_certificate(certificate_id)
+    if not cert:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    png_bytes = base64.b64decode(generate_qr_base64(cert["qr"]["url"]))
+    return Response(content=png_bytes, media_type="image/png")
