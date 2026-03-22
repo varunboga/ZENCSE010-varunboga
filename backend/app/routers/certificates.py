@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from fastapi.responses import Response
 from app.middleware.api_key_auth import verify_api_key
 from app.services import certificate_service
 from app.models.requests import FlatCertificateCreateRequest, RevokeRequest
+from app.exceptions.handlers import CertificateNotFoundException
 
 router = APIRouter(prefix="/certificates", tags=["certificates"])
 
@@ -21,15 +22,17 @@ async def list_certificates(skip: int = 0, limit: int = 20):
 async def get_certificate(certificate_id: str):
     cert = await certificate_service.get_certificate(certificate_id)
     if not cert:
-        raise HTTPException(status_code=404, detail="Certificate not found")
+        raise CertificateNotFoundException(certificate_id)
     return cert
 
 
 @router.put("/{certificate_id}/revoke", dependencies=[Depends(verify_api_key)])
 async def revoke_certificate(certificate_id: str, body: RevokeRequest):
-    success = await certificate_service.revoke_certificate(certificate_id, body.reason, body.revoked_by)
+    success = await certificate_service.revoke_certificate(
+        certificate_id, body.reason, body.revoked_by
+    )
     if not success:
-        raise HTTPException(status_code=404, detail="Certificate not found")
+        raise CertificateNotFoundException(certificate_id)
     return {"certificate_id": certificate_id, "status": "REVOKED"}
 
 
@@ -39,6 +42,6 @@ async def get_qrcode(certificate_id: str):
     from app.services.qr_service import generate_qr_base64
     cert = await certificate_service.get_certificate(certificate_id)
     if not cert:
-        raise HTTPException(status_code=404, detail="Certificate not found")
+        raise CertificateNotFoundException(certificate_id)
     png_bytes = base64.b64decode(generate_qr_base64(cert["qr"]["url"]))
     return Response(content=png_bytes, media_type="image/png")

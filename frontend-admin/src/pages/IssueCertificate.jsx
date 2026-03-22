@@ -28,6 +28,8 @@ export default function IssueCertificate() {
   const handleSubmit = async () => {
     if (!form.recipient_name.trim()) { setError('Recipient name is required'); return }
     if (!form.recipient_email.trim()) { setError('Recipient email is required'); return }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(form.recipient_email)) { setError('Please enter a valid email address'); return }
     if (!form.course_title.trim()) { setError('Course title is required'); return }
     if (form.skills.length === 0) { setError('Please add at least one skill'); return }
     if (!form.issue_date) { setError('Issue date is required'); return }
