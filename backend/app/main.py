@@ -14,13 +14,20 @@ from app.exceptions.handlers import (
 )
 from app.middleware.rate_limiter import limiter
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await database.create_indexes()
     yield
     await database.close_connection()
 
-app = FastAPI(title="CertShield API", description="API for CertShield", version="1.0.0", lifespan=lifespan)
+
+app = FastAPI(
+    title="CertShield API",
+    description="Digital Certificate Verification Microservice",
+    version="1.0.0",
+    lifespan=lifespan
+)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -40,3 +47,14 @@ app.add_exception_handler(Exception, generic_error_handler)
 app.include_router(certificates.router, prefix="/api/v1")
 app.include_router(verification.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
+
+
+@app.get("/", tags=["health"])
+async def root():
+    return {
+        "message": "Welcome to CertShield API",
+        "version": "1.0.0",
+        "status": "healthy",
+        "docs": "http://127.0.0.1:8000/docs",
+        "api": "http://127.0.0.1:8000/api/v1"
+    }
