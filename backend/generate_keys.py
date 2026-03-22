@@ -36,3 +36,38 @@ TODO (Students):
 """
 
 # TODO: implement key generation here
+import os
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives import serialization
+
+def generate_keys():
+    os.makedirs("keys", exist_ok=True)
+
+    if os.path.exists("keys/private_key.pem"):
+        answer = input("keys/private_key.pem already exists. Overwrite? This invalidates all signed certificates. (yes/no): ")
+        if answer.strip().lower() != "yes":
+            print("Aborted. Keys not overwritten.")
+            return
+
+    private_key = ec.generate_private_key(ec.SECP256R1())
+    public_key = private_key.public_key()
+
+    with open("keys/private_key.pem", "wb") as f:
+        f.write(private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        ))
+
+    with open("keys/public_key.pem", "wb") as f:
+        f.write(public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        ))
+
+    print("ECDSA P-256 key pair generated successfully!")
+    print("Private key: keys/private_key.pem")
+    print("Public key:  keys/public_key.pem")
+
+if __name__ == "__main__":
+    generate_keys()

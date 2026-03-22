@@ -8,6 +8,80 @@ from app.config import settings
 from app.services import signature_service, qr_service
 
 
+async def issue_certificate_flat(request) -> Dict:
+    certificate_id = f"CERT-{uuid.uuid4()}"
+    issued_at = datetime.now(timezone.utc)
+    issued_at_iso = issued_at.isoformat()
+
+    data_to_sign = {
+        "certificate_id": certificate_id,
+        "recipient": {
+            "name": request.recipient_name,
+            "email": request.recipient_email,
+            "student_id": request.recipient_student_id or "N/A",
+        },
+        "certificate": {
+            "title": request.course_title,
+            "description": request.description,
+            "skills": request.skills,
+        },
+        "issued_at": issued_at_iso,
+    }
+
+    signature_b64, data_hash = signature_service.sign_certificate(data_to_sign)
+    verification_url = f"{settings.verify_base_url}/{certificate_id}"
+    qr_base64 = qr_service.generate_qr_base64(verification_url)
+
+    linkedin_params = urlencode({
+        "url": verification_url,
+        "title": request.course_title,
+        "summary": request.description or ""
+    })
+    linkedin_share_url = f"https://www.linkedin.com/sharing/share-offsite/?{linkedin_params}"
+
+    document = {
+        "certificate_id": certificate_id,
+        "recipient": {
+            "name": request.recipient_name,
+            "email": request.recipient_email,
+            "student_id": request.recipient_student_id or "N/A",
+        },
+        "certificate": {
+            "title": request.course_title,
+            "description": request.description,
+            "skills": request.skills,
+        },
+        "issued_at_iso": issued_at_iso,
+        "issued_at": issued_at,
+        "expires_at": datetime.combine(request.expiry_date, datetime.min.time()).replace(tzinfo=timezone.utc) if request.expiry_date else None,
+        "signature": {
+            "algorithm": "ECDSA-P256-SHA256",
+            "key_id": settings.key_id,
+            "value": signature_b64,
+            "data_hash": data_hash,
+        },
+        "qr": {
+            "url": verification_url,
+            "generated_at": issued_at,
+        },
+        "status": "ACTIVE",
+        "verification_count": 0,
+        "last_verified_at": None,
+        "created_at": issued_at,
+    }
+
+    await db.certificates.insert_one(document)
+
+    return {
+        "certificate_id": certificate_id,
+        "qr_code_base64": qr_base64,
+        "qr_code_url": verification_url,
+        "linkedin_share_url": linkedin_share_url,
+        "issued_at": issued_at_iso,
+        "status": "ACTIVE",
+    }
+
+
 async def issue_certificate(request) -> Dict:
     certificate_id = f"CERT-{uuid.uuid4()}"
     issued_at = datetime.now(timezone.utc)
