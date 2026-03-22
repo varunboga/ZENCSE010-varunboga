@@ -1,31 +1,3 @@
-/*
- * US-26 — Certificate Detail Page with Revoke Action
- *
- * TODO (Students):
- * 1. Read certificate ID from URL params: useParams()
- * 2. On mount, call GET /api/v1/certificates/:id with X-API-Key header
- * 3. Display all certificate fields:
- *    - Recipient name, email, student ID
- *    - Course title, description, skills (as tags)
- *    - Issue date, expiry date
- *    - Status badge
- *    - Verification count and last verified at
- * 4. Show QR code image: <img src={`data:image/png;base64,...`} />
- *    (Hint: call GET /api/v1/certificates/:id/qrcode to get the PNG,
- *     or render from the certificate data if you store base64)
- * 5. Add a "Download QR" button
- *
- * 6. Revoke button (only shown when status === "ACTIVE"):
- *    - Show a confirmation dialog: "Are you sure you want to revoke this certificate?"
- *    - On confirm, call PUT /api/v1/certificates/:id/revoke
- *    - On success, refresh the certificate data (status will change to REVOKED)
- *    - Hide the Revoke button after revocation
- *
- * API:
- *   GET  http://localhost:8000/api/v1/certificates/:id   (headers: X-API-Key)
- *   PUT  http://localhost:8000/api/v1/certificates/:id/revoke   (headers: X-API-Key)
- */
-
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import apiClient from '../api/client'
@@ -37,12 +9,27 @@ export default function CertificateDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [revoking, setRevoking] = useState(false)
+  const [qrUrl, setQrUrl] = useState(null)
   const navigate = useNavigate()
 
-  const fetchCert = () => {
-    apiClient.get('/certificates/' + id)
-      .then((data) => { setCert(data); setLoading(false) })
-      .catch((err) => { setError(err.message); setLoading(false) })
+  const fetchCert = async () => {
+    try {
+      const data = await apiClient.get('/certificates/' + id)
+      setCert(data)
+      setLoading(false)
+      // Fetch QR code as blob URL
+      const response = await fetch(
+        import.meta.env.VITE_API_URL + '/api/v1/certificates/' + id + '/qrcode',
+        { headers: { 'X-API-Key': import.meta.env.VITE_API_KEY } }
+      )
+      if (response.ok) {
+        const blob = await response.blob()
+        setQrUrl(URL.createObjectURL(blob))
+      }
+    } catch (err) {
+      setError(err.message)
+      setLoading(false)
+    }
   }
 
   useEffect(() => { fetchCert() }, [id])
@@ -52,20 +39,19 @@ export default function CertificateDetail() {
     setRevoking(true)
     try {
       await apiClient.put('/certificates/' + id + '/revoke', { reason: 'Revoked by admin', revoked_by: 'admin' })
-      fetchCert()
+      await fetchCert()
     } catch (err) {
       alert('Revoke failed: ' + err.message)
     }
     setRevoking(false)
   }
 
- const downloadQR = async () => {
-  try {
+  const downloadQR = async () => {
     const response = await fetch(
-      import.meta.env.VITE_API_URL + '/certificates/' + id + '/qrcode',
+      import.meta.env.VITE_API_URL + '/api/v1/certificates/' + id + '/qrcode',
       { headers: { 'X-API-Key': import.meta.env.VITE_API_KEY } }
     )
-    if (!response.ok) throw new Error('Failed to fetch QR code')
+    if (!response.ok) { alert('Failed to download QR'); return }
     const blob = await response.blob()
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -73,13 +59,11 @@ export default function CertificateDetail() {
     link.download = id + '-qrcode.png'
     link.click()
     URL.revokeObjectURL(url)
-  } catch (err) {
-    alert('Failed to download QR: ' + err.message)
   }
-}
 
   if (loading) return <div style={styles.page}><Navbar navigate={navigate} /><div style={styles.content}><p>Loading...</p></div></div>
   if (error) return <div style={styles.page}><Navbar navigate={navigate} /><div style={styles.content}><p style={{ color: '#dc2626' }}>{error}</p></div></div>
+  if (!cert) return <div style={styles.page}><Navbar navigate={navigate} /><div style={styles.content}><p>Certificate not found.</p></div></div>
 
   const isActive = cert.status === 'ACTIVE'
 
@@ -108,6 +92,8 @@ export default function CertificateDetail() {
             <Field label="Issued" value={cert.issued_at ? new Date(cert.issued_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '-'} />
             <Field label="Expires" value={cert.expires_at ? new Date(cert.expires_at).toLocaleDateString() : 'Never'} />
             <Field label="Verifications" value={cert.verification_count} />
+            <Field label="Last Verified" value={cert.last_verified_at ? new Date(cert.last_verified_at).toLocaleString() : 'Never'} />
+            <Field label="Signature Hash" value={cert.signature?.data_hash} mono />
             {cert.certificate?.skills?.length > 0 && (
               <div style={{ marginTop: '8px' }}>
                 <span style={{ color: '#6b7280', fontSize: '13px' }}>Skills: </span>
@@ -118,6 +104,24 @@ export default function CertificateDetail() {
             )}
           </div>
         </div>
+
+        {/* Revocation info */}
+        {!isActive && cert.revocation && (
+          <div style={{ backgroundColor: '#fff7ed', border: '1px solid #fdba74', borderRadius: '8px', padding: '20px', marginTop: '24px' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: '#ea580c' }}>Revocation Details</h2>
+            <Field label="Revoked At" value={cert.revocation.revokedAt ? new Date(cert.revocation.revokedAt).toLocaleString() : '-'} />
+            <Field label="Reason" value={cert.revocation.reason} />
+            <Field label="Revoked By" value={cert.revocation.revokedBy} />
+          </div>
+        )}
+
+        {/* QR Code */}
+        {qrUrl && (
+          <div style={{ backgroundColor: 'white', borderRadius: '8px', padding: '24px', marginTop: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', textAlign: 'center' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '16px', color: '#374151' }}>QR Code</h2>
+            <img src={qrUrl} alt="QR Code" style={{ width: '200px', height: '200px', border: '1px solid #e5e7eb', borderRadius: '8px' }} />
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
           {isActive && (
@@ -136,11 +140,11 @@ export default function CertificateDetail() {
   )
 }
 
-function Field({ label, value }) {
+function Field({ label, value, mono }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f3f4f6' }}>
       <span style={{ color: '#6b7280', fontSize: '13px' }}>{label}</span>
-      <span style={{ color: '#1f2937', fontSize: '13px', fontWeight: '500' }}>{value || '-'}</span>
+      <span style={{ color: '#1f2937', fontSize: '13px', fontWeight: '500', fontFamily: mono ? 'monospace' : 'inherit', wordBreak: 'break-all', maxWidth: '60%', textAlign: 'right' }}>{value || '-'}</span>
     </div>
   )
 }

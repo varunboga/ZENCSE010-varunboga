@@ -152,6 +152,9 @@ async def list_certificates(skip: int = 0, limit: int = 20) -> List[Dict]:
     results = []
     async for doc in cursor:
         doc["_id"] = str(doc["_id"])
+        # Add flat fields for list view
+        doc["recipient_name"] = doc.get("recipient", {}).get("name")
+        doc["course_title"] = doc.get("certificate", {}).get("title")
         results.append(doc)
     return results
 

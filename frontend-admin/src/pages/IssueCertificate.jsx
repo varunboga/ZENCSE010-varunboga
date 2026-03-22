@@ -1,45 +1,3 @@
-/*
- * US-24 — Issue Certificate Form
- *
- * TODO (Students):
- * 1. Build a form with these fields:
- *    - Recipient Name (required text input)
- *    - Recipient Email (required email input)
- *    - Student ID (optional text input)
- *    - Course Title (required text input)
- *    - Description (optional textarea)
- *    - Skills (dynamic list — add/remove tags)
- *    - Issue Date (required date picker)
- *    - Expiry Date (optional date picker)
- *
- * 2. On submit, call POST /api/v1/certificates with X-API-Key header
- *    Request body:
- *    {
- *      "recipient_name": "John Doe",
- *      "recipient_email": "john@example.com",
- *      "recipient_student_id": "STU-001",
- *      "course_title": "Full Stack Development",
- *      "description": "Completed 6-month program",
- *      "skills": ["Python", "React", "MongoDB"],
- *      "issue_date": "2026-03-05",
- *      "expiry_date": null
- *    }
- *
- * 3. On success (HTTP 201):
- *    - Show the QR code image (decode qr_code_base64 and render as <img>)
- *    - Show the certificate_id
- *    - Show a "Download QR" button
- *
- * 4. On HTTP 422: show inline validation errors under each field
- * 5. On other errors: show a general error message
- *
- * Hint for rendering QR:
- *   <img src={`data:image/png;base64,${response.qr_code_base64}`} alt="QR Code" />
- *
- * Hint for Download QR button:
- *   Create a link element with href=data:image/png;base64,... and trigger click
- */
-
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import apiClient from '../api/client'
@@ -68,6 +26,12 @@ export default function IssueCertificate() {
   const removeSkill = (s) => set('skills', form.skills.filter(x => x !== s))
 
   const handleSubmit = async () => {
+    if (!form.recipient_name.trim()) { setError('Recipient name is required'); return }
+    if (!form.recipient_email.trim()) { setError('Recipient email is required'); return }
+    if (!form.course_title.trim()) { setError('Course title is required'); return }
+    if (form.skills.length === 0) { setError('Please add at least one skill'); return }
+    if (!form.issue_date) { setError('Issue date is required'); return }
+
     setLoading(true)
     setError(null)
     try {
@@ -86,6 +50,12 @@ export default function IssueCertificate() {
       }
       const data = await apiClient.post('/certificates/', body)
       setResult(data)
+      // Reset form after success
+      setForm({
+        recipient_name: '', recipient_email: '', recipient_student_id: '',
+        course_title: '', description: '', skills: [], issue_date: '', expiry_date: ''
+      })
+      setSkillInput('')
     } catch (err) {
       if (err.response?.status === 422) {
         setError('Validation error: ' + JSON.stringify(err.response.data.details))
@@ -120,7 +90,7 @@ export default function IssueCertificate() {
                 <img src={'data:image/png;base64,' + result.qr_code_base64} alt="QR Code" style={{ width: '200px', height: '200px', border: '1px solid #e5e7eb', borderRadius: '8px' }} />
               </div>
             )}
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <button onClick={downloadQR} style={styles.btnPrimary}>Download QR</button>
               <button onClick={() => setResult(null)} style={styles.btnSecondary}>Issue Another</button>
               <button onClick={() => navigate('/certificates')} style={styles.btnSecondary}>View All</button>
@@ -130,6 +100,8 @@ export default function IssueCertificate() {
       </div>
     )
   }
+
+  const isDisabled = loading || !form.recipient_name || !form.recipient_email || !form.course_title
 
   return (
     <div style={styles.page}>
@@ -151,15 +123,24 @@ export default function IssueCertificate() {
               <textarea value={form.description} onChange={e => set('description', e.target.value)} placeholder="Course description..." style={{ ...inputStyle, height: '80px', resize: 'vertical' }} />
             </div>
             <div style={{ marginBottom: '16px' }}>
-              <label style={labelStyle}>Skills</label>
+              <label style={labelStyle}>Skills *</label>
               <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                <input value={skillInput} onChange={e => setSkillInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && addSkill()} placeholder="Add skill..." style={{ ...inputStyle, marginBottom: 0, flex: 1 }} />
+                <input
+                  value={skillInput}
+                  onChange={e => setSkillInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addSkill()}
+                  placeholder="Add skill and press Enter..."
+                  style={{ ...inputStyle, marginBottom: 0, flex: 1 }}
+                />
                 <button onClick={addSkill} style={{ padding: '8px 16px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Add</button>
               </div>
+              {form.skills.length === 0 && (
+                <p style={{ color: '#9ca3af', fontSize: '12px', margin: '4px 0' }}>Add at least one skill</p>
+              )}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                 {form.skills.map(s => (
                   <span key={s} style={{ backgroundColor: '#dbeafe', color: '#1d4ed8', padding: '4px 10px', borderRadius: '12px', fontSize: '13px', cursor: 'pointer' }} onClick={() => removeSkill(s)}>
-                    {s} x
+                    {s} &times;
                   </span>
                 ))}
               </div>
@@ -168,10 +149,17 @@ export default function IssueCertificate() {
             <Input label="Expiry Date" value={form.expiry_date} onChange={v => set('expiry_date', v)} type="date" />
           </Section>
 
-          {error && <p style={{ color: '#dc2626', fontSize: '13px', marginBottom: '16px' }}>{error}</p>}
+          {error && (
+            <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '6px', padding: '12px', marginBottom: '16px' }}>
+              <p style={{ color: '#dc2626', fontSize: '13px', margin: 0 }}>{error}</p>
+            </div>
+          )}
 
-          <button onClick={handleSubmit} disabled={loading || !form.recipient_name || !form.recipient_email || !form.course_title}
-            style={{ ...styles.btnPrimary, opacity: (!form.recipient_name || !form.recipient_email || !form.course_title) ? 0.6 : 1 }}>
+          <button
+            onClick={handleSubmit}
+            disabled={isDisabled}
+            style={{ ...styles.btnPrimary, opacity: isDisabled ? 0.6 : 1, cursor: isDisabled ? 'not-allowed' : 'pointer' }}
+          >
             {loading ? 'Issuing...' : 'Issue Certificate'}
           </button>
         </div>
@@ -193,8 +181,13 @@ function Input({ label, value, onChange, placeholder, type = 'text' }) {
   return (
     <div style={{ marginBottom: '16px' }}>
       <label style={labelStyle}>{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        style={inputStyle} />
+      <input
+        type={type}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={inputStyle}
+      />
     </div>
   )
 }
