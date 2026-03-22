@@ -36,21 +36,17 @@ export default function IssueCertificate() {
     setError(null)
     try {
       const body = {
-        recipient: {
-          name: form.recipient_name,
-          email: form.recipient_email,
-          student_id: form.recipient_student_id || 'N/A',
-        },
-        certificate: {
-          title: form.course_title,
-          description: form.description || null,
-          skills: form.skills,
-        },
-        expires_at: form.expiry_date || null,
+        recipient_name: form.recipient_name,
+        recipient_email: form.recipient_email,
+        recipient_student_id: form.recipient_student_id || null,
+        course_title: form.course_title,
+        description: form.description || null,
+        skills: form.skills,
+        issue_date: form.issue_date,
+        expiry_date: form.expiry_date || null,
       }
-      const data = await apiClient.post('/certificates/', body)
+      const data = await apiClient.post('/api/v1/certificates/', body)
       setResult(data)
-      // Reset form after success
       setForm({
         recipient_name: '', recipient_email: '', recipient_student_id: '',
         course_title: '', description: '', skills: [], issue_date: '', expiry_date: ''

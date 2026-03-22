@@ -14,7 +14,7 @@ export default function CertificateDetail() {
 
   const fetchCert = async () => {
     try {
-      const data = await apiClient.get('/certificates/' + id)
+      const data = await apiClient.get('/api/v1/certificates/' + id)
       setCert(data)
       setLoading(false)
       // Fetch QR code as blob URL
@@ -38,7 +38,7 @@ export default function CertificateDetail() {
     if (!window.confirm('Are you sure you want to revoke this certificate?')) return
     setRevoking(true)
     try {
-      await apiClient.put('/certificates/' + id + '/revoke', { reason: 'Revoked by admin', revoked_by: 'admin' })
+      await apiClient.put('/api/v1/certificates/' + id + '/revoke', { reason: 'Revoked by admin', revoked_by: 'admin' })
       await fetchCert()
     } catch (err) {
       alert('Revoke failed: ' + err.message)

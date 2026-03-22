@@ -9,7 +9,7 @@ export default function VerificationResult() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    apiClient.get("/verify/" + certificateId)
+    apiClient.get("/api/v1/verify/" + certificateId)
       .then((data) => { setResult(data); setLoading(false) })
       .catch(() => { setResult({ result: "NOT_FOUND", certificate_id: certificateId, message: "Certificate not found." }); setLoading(false) })
   }, [certificateId])

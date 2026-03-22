@@ -46,7 +46,7 @@ export default function CertificateList() {
 
   useEffect(() => {
     setLoading(true)
-    apiClient.get('/certificates/?skip=' + skip + '&limit=' + LIMIT)
+    apiClient.get('/api/v1/certificates/?skip=' + skip + '&limit=' + LIMIT)
       .then((data) => { setCertificates(data); setLoading(false) })
       .catch((err) => { setError(err.message); setLoading(false) })
   }, [skip])
@@ -89,7 +89,7 @@ export default function CertificateList() {
                         </span>
                       </td>
                       <td style={{ padding: '12px 16px' }}>
-                        <button onClick={() => navigate('/certificates/' + cert.certificate_id)}
+                        <button onClick={() => navigate('/api/v1/certificates/' + cert.certificate_id)}
                           style={{ padding: '4px 12px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
                           View
                         </button>

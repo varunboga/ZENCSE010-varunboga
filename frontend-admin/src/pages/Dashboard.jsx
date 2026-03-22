@@ -35,7 +35,7 @@ export default function Dashboard() {
   const navigate = useNavigate()
 
   const fetchStats = () => {
-    apiClient.get('/stats/')
+    apiClient.get('/api/v1/stats/')
       .then((data) => { setStats(data); setLoading(false) })
       .catch((err) => { setError(err.message); setLoading(false) })
   }
